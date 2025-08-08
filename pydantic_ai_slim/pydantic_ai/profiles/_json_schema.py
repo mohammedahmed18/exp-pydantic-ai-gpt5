@@ -28,10 +28,8 @@ class JsonSchemaTransformer(ABC):
         simplify_nullable_unions: bool = False,
     ):
         self.schema = schema
-
         self.strict = strict
-        self.is_strict_compatible = True  # Can be set to False by subclasses to set `strict` on `ToolDefinition` when set not set by user explicitly
-
+        self.is_strict_compatible = True
         self.prefer_inlined_defs = prefer_inlined_defs
         self.simplify_nullable_unions = simplify_nullable_unions
 
@@ -75,8 +73,16 @@ class JsonSchemaTransformer(ABC):
     def _handle(self, schema: JsonSchema) -> JsonSchema:
         nested_refs = 0
         if self.prefer_inlined_defs:
-            while ref := schema.get('$ref'):
-                key = re.sub(r'^#/\$defs/', '', ref)
+            while True:
+                ref = schema.get('$ref')
+                if not ref:
+                    break
+                # Fast path: extract key without regex
+                prefix = '#/$defs/'
+                if ref.startswith(prefix):
+                    key = ref[len(prefix):]
+                else:
+                    key = re.sub(r'^#/\$defs/', '', ref)
                 if key in self.refs_stack:
                     self.recursive_refs.add(key)
                     break  # recursive ref can't be unpacked
@@ -88,7 +94,6 @@ class JsonSchemaTransformer(ABC):
                     raise UserError(f'Could not find $ref definition for {key}')
                 schema = def_schema
 
-        # Handle the schema based on its type / structure
         type_ = schema.get('type')
         if type_ == 'object':
             schema = self._handle_object(schema)
@@ -98,11 +103,10 @@ class JsonSchemaTransformer(ABC):
             schema = self._handle_union(schema, 'anyOf')
             schema = self._handle_union(schema, 'oneOf')
 
-        # Apply the base transform
         schema = self.transform(schema)
 
         if nested_refs > 0:
-            self.refs_stack = self.refs_stack[:-nested_refs]
+            del self.refs_stack[-nested_refs:]
 
         return schema
 
@@ -137,44 +141,39 @@ class JsonSchemaTransformer(ABC):
         return schema
 
     def _handle_union(self, schema: JsonSchema, union_kind: Literal['anyOf', 'oneOf']) -> JsonSchema:
-        try:
-            members = schema.pop(union_kind)
-        except KeyError:
+        members = schema.pop(union_kind, None)
+        if members is None:
             return schema
 
         handled = [self._handle(member) for member in members]
 
-        # convert nullable unions to nullable types
         if self.simplify_nullable_unions:
             handled = self._simplify_nullable_union(handled)
 
         if len(handled) == 1:
             # In this case, no need to retain the union
-            return handled[0] | schema
+            # Merge handled[0] over schema (handled[0]'s keys take precedence)
+            return {**schema, **handled[0]}
 
-        # If we have keys besides the union kind (such as title or discriminator), keep them without modifications
-        schema = schema.copy()
-        schema[union_kind] = handled
-        return schema
+        # Copy the schema and set the new union list
+        # (preserves original schema except the removed union_kind key, which we now restore)
+        new_schema = dict(schema)
+        new_schema[union_kind] = handled
+        return new_schema
 
     @staticmethod
     def _simplify_nullable_union(cases: list[JsonSchema]) -> list[JsonSchema]:
-        # TODO: Should we move this to relevant subclasses? Or is it worth keeping here to make reuse easier?
+        # Avoid deepcopy for shallow dicts
         if len(cases) == 2 and {'type': 'null'} in cases:
             # Find the non-null schema
-            non_null_schema = next(
-                (item for item in cases if item != {'type': 'null'}),
-                None,
-            )
-            if non_null_schema:
-                # Create a new schema based on the non-null part, mark as nullable
-                new_schema = deepcopy(non_null_schema)
-                new_schema['nullable'] = True
-                return [new_schema]
-            else:  # pragma: no cover
-                # they are both null, so just return one of them
-                return [cases[0]]
-
+            for item in cases:
+                if item != {'type': 'null'}:
+                    # use shallow copy, not deepcopy, for simple flat dict
+                    new_schema = item.copy()
+                    new_schema['nullable'] = True
+                    return [new_schema]
+            # they are both null, so just return one of them
+            return [cases[0]]
         return cases
 
 
