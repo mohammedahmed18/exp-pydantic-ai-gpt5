@@ -57,6 +57,17 @@ class ModelProfile:
         """Update this ModelProfile (subclass) instance with the non-default values from another ModelProfile instance."""
         if not profile:
             return self
+        
+        # Fast path when both instances are of the exact same class
+        if profile.__class__ is self.__class__:
+            non_default_attrs = {
+                f.name: getattr(profile, f.name)
+                for f in fields(self)
+                if getattr(profile, f.name) != f.default
+            }
+            return replace(self, **non_default_attrs)
+        
+        # General path for different classes
         field_names = set(f.name for f in fields(self))
         non_default_attrs = {
             f.name: getattr(profile, f.name)
