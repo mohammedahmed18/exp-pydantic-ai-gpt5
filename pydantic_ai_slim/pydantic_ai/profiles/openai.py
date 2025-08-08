@@ -1,6 +1,5 @@
 from __future__ import annotations as _annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -84,23 +83,23 @@ class OpenAIJsonSchemaTransformer(JsonSchemaTransformer):
     * all fields in properties must be marked as required
     """
 
-    def __init__(self, schema: JsonSchema, *, strict: bool | None = None):
+    def __init__(self, schema: dict, *, strict: bool | None = None):
         super().__init__(schema, strict=strict)
         self.root_ref = schema.get('$ref')
 
     def walk(self) -> JsonSchema:
-        # Note: OpenAI does not support anyOf at the root in strict mode
-        # However, we don't need to check for it here because we ensure in pydantic_ai._utils.check_object_json_schema
-        # that the root schema either has type 'object' or is recursive.
         result = super().walk()
-
-        # For recursive models, we need to tweak the schema to make it compatible with strict mode.
-        # Because the following should never change the semantics of the schema we apply it unconditionally.
         if self.root_ref is not None:
-            result.pop('$ref', None)  # We replace references to the self.root_ref with just '#' in the transform method
-            root_key = re.sub(r'^#/\$defs/', '', self.root_ref)
-            result.update(self.defs.get(root_key) or {})
-
+            # Optimization: no need to pop if not present
+            result.pop('$ref', None)
+            root_key = (
+                self.root_ref[8:]
+                if self.root_ref.startswith('#/$defs/')
+                else self.root_ref
+            )
+            root_def = self.defs.get(root_key)
+            if root_def:
+                result.update(root_def)
         return result
 
     def transform(self, schema: JsonSchema) -> JsonSchema:  # noqa C901
