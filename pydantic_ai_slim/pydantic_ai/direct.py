@@ -189,11 +189,22 @@ def model_request_stream(
     Returns:
         A [stream response][pydantic_ai.models.StreamedResponse] async context manager.
     """
+    # OPT: Save lookup, inline ModelRequestParameters allocation (avoid double allocation on None-check)
+    if model_request_parameters is None:
+        model_request_parameters = models.ModelRequestParameters()
+
+    # OPT: Call _prepare_model just once, avoid intermediate var if only a single use, but keep for clarity
     model_instance = _prepare_model(model, instrument)
+
+    # OPT: Store customize_request_parameters function locally (method pointer saves attribute lookup inside call)
+    customize = model_instance.customize_request_parameters
+    crp = customize(model_request_parameters)
+
+    # Direct call to request_stream; no extra wrapping
     return model_instance.request_stream(
         messages,
         model_settings,
-        model_instance.customize_request_parameters(model_request_parameters or models.ModelRequestParameters()),
+        crp,
     )
 
 
@@ -244,6 +255,7 @@ def model_request_stream_sync(
     Returns:
         A [sync stream response][pydantic_ai.direct.StreamedResponseSync] context manager.
     """
+    # OPT: Pass parameters directly, no need to cache to local, as the function above is already optimal.
     async_stream_cm = model_request_stream(
         model=model,
         messages=messages,
@@ -251,7 +263,7 @@ def model_request_stream_sync(
         model_request_parameters=model_request_parameters,
         instrument=instrument,
     )
-
+    # OPT: Direct construction and return
     return StreamedResponseSync(async_stream_cm)
 
 
