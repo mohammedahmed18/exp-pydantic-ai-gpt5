@@ -863,27 +863,32 @@ def _metadata_as_usage(response: _GeminiResponse) -> usage.Usage:
     metadata = response.get('usage_metadata')
     if metadata is None:
         return usage.Usage()  # pragma: no cover
+
     details: dict[str, int] = {}
-    if cached_content_token_count := metadata.get('cached_content_token_count'):
+    mget = metadata.get
+
+    if (cached_content_token_count := mget('cached_content_token_count')):
         details['cached_content_tokens'] = cached_content_token_count  # pragma: no cover
 
-    if thoughts_token_count := metadata.get('thoughts_token_count'):
+    if (thoughts_token_count := mget('thoughts_token_count')):
         details['thoughts_tokens'] = thoughts_token_count
 
-    if tool_use_prompt_token_count := metadata.get('tool_use_prompt_token_count'):
+    if (tool_use_prompt_token_count := mget('tool_use_prompt_token_count')):
         details['tool_use_prompt_tokens'] = tool_use_prompt_token_count  # pragma: no cover
 
+    suffix_marker = '_details'
+    suffix_len = len(suffix_marker)
     for key, metadata_details in metadata.items():
-        if key.endswith('_details') and metadata_details:
-            metadata_details = cast(list[_GeminiModalityTokenCount], metadata_details)
-            suffix = key.removesuffix('_details')
+        if key.endswith(suffix_marker) and metadata_details:
+            suffix = key[:-suffix_len]
             for detail in metadata_details:
-                details[f'{detail["modality"].lower()}_{suffix}'] = detail['token_count']
+                modality = detail['modality'].lower()
+                details[modality + '_' + suffix] = detail['token_count']
 
     return usage.Usage(
-        request_tokens=metadata.get('prompt_token_count', 0),
-        response_tokens=metadata.get('candidates_token_count', 0),
-        total_tokens=metadata.get('total_token_count', 0),
+        request_tokens=mget('prompt_token_count', 0),
+        response_tokens=mget('candidates_token_count', 0),
+        total_tokens=mget('total_token_count', 0),
         details=details,
     )
 
