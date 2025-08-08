@@ -229,18 +229,15 @@ class AudioUrl(FileUrl):
         References:
         - Gemini: https://ai.google.dev/gemini-api/docs/audio#supported-formats
         """
-        if self.url.endswith('.mp3'):
-            return 'audio/mpeg'
-        if self.url.endswith('.wav'):
-            return 'audio/wav'
-        if self.url.endswith('.flac'):
-            return 'audio/flac'
-        if self.url.endswith('.oga'):
-            return 'audio/ogg'
-        if self.url.endswith('.aiff'):
-            return 'audio/aiff'
-        if self.url.endswith('.aac'):
-            return 'audio/aac'
+        s = self.url
+        # Try 5-char extensions first
+        media = _AUDIO_EXT_TO_TYPE_5.get(s[-5:])
+        if media is not None:
+            return media  # type: ignore[return-value]
+        # Then 4-char extensions
+        media = _AUDIO_EXT_TO_TYPE_4.get(s[-4:])
+        if media is not None:
+            return media  # type: ignore[return-value]
 
         raise ValueError(
             f'Could not infer media type from audio URL: {self.url}. Explicitly provide a `media_type` instead.'
@@ -1237,3 +1234,12 @@ HandleResponseEvent = Annotated[
     Union[FunctionToolCallEvent, FunctionToolResultEvent, BuiltinToolCallEvent, BuiltinToolResultEvent],
     pydantic.Discriminator('event_kind'),
 ]
+
+_AUDIO_EXT_TO_TYPE_5 = {'.flac': 'audio/flac', '.aiff': 'audio/aiff'}
+
+_AUDIO_EXT_TO_TYPE_4 = {
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.oga': 'audio/ogg',
+    '.aac': 'audio/aac',
+}
