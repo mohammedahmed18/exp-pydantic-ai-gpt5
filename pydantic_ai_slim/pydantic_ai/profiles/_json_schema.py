@@ -186,3 +186,8 @@ class InlineDefsJsonSchemaTransformer(JsonSchemaTransformer):
 
     def transform(self, schema: JsonSchema) -> JsonSchema:
         return schema
+
+
+def _strip_defs_prefix(ref: str) -> str:
+    # Fast path for removing the well-known prefix used in $ref values
+    return ref[8:] if ref.startswith('#/$defs/') else ref
