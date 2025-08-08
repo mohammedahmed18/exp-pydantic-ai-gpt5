@@ -363,10 +363,12 @@ class InstrumentedModel(WrapperModel):
             except Exception:  # pragma: no cover
                 pass
             else:
-                if parsed.hostname:  # pragma: no branch
-                    attributes['server.address'] = parsed.hostname
-                if parsed.port:  # pragma: no branch
-                    attributes['server.port'] = parsed.port
+                hostname = parsed.hostname
+                if hostname:  # pragma: no branch
+                    attributes['server.address'] = hostname
+                port = parsed.port
+                if port:  # pragma: no branch
+                    attributes['server.port'] = port
 
         return attributes
 
