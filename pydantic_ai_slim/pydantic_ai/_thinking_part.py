@@ -12,20 +12,23 @@ def split_content_into_text_and_thinking(content: str, thinking_tags: tuple[str,
     start_tag, end_tag = thinking_tags
     parts: list[ThinkingPart | TextPart] = []
 
-    start_index = content.find(start_tag)
-    while start_index >= 0:
-        before_think, content = content[:start_index], content[start_index + len(start_tag) :]
-        if before_think:
-            parts.append(TextPart(content=before_think))
-        end_index = content.find(end_tag)
-        if end_index >= 0:
-            think_content, content = content[:end_index], content[end_index + len(end_tag) :]
-            parts.append(ThinkingPart(content=think_content))
-        else:
-            # We lose the `<think>` tag, but it shouldn't matter.
-            parts.append(TextPart(content=content))
-            content = ''
-        start_index = content.find(start_tag)
-    if content:
-        parts.append(TextPart(content=content))
+    idx = 0
+    start_tag_len = len(start_tag)
+    end_tag_len = len(end_tag)
+
+    while idx < len(content):
+        start_index = content.find(start_tag, idx)
+        if start_index == -1:
+            if idx < len(content):
+                parts.append(TextPart(content=content[idx:]))
+            break
+        if start_index > idx:
+            parts.append(TextPart(content=content[idx:start_index]))
+        end_index = content.find(end_tag, start_index + start_tag_len)
+        if end_index == -1:
+            parts.append(TextPart(content=content[start_index + start_tag_len:]))
+            break
+        parts.append(ThinkingPart(content=content[start_index + start_tag_len:end_index]))
+        idx = end_index + end_tag_len
+
     return parts
