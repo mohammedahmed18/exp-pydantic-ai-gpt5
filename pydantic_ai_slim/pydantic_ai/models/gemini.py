@@ -48,6 +48,7 @@ from . import (
     download_item,
     get_user_agent,
 )
+from codecs import utf_8_decode
 
 LatestGeminiModelNames = Literal[
     'gemini-2.0-flash',
@@ -924,9 +925,11 @@ def _ensure_decodeable(content: bytearray) -> bytearray:
     This is a temporary workaround until https://github.com/pydantic/pydantic-core/issues/1633 is resolved
     """
     try:
-        content.decode()
+        # Use the UTF-8 decoder in non-final mode: this raises for any invalid sequence in the middle,
+        # but treats an incomplete sequence at the end as non-fatal and returns how many bytes were consumed.
+        _, consumed = utf_8_decode(content, 'strict', False)
     except UnicodeDecodeError as e:
         # e.start marks the start of the invalid decoded bytes, so cut up to before the first invalid byte
         return content[: e.start]
     else:
-        return content
+        return content if consumed == len(content) else content[:consumed]
