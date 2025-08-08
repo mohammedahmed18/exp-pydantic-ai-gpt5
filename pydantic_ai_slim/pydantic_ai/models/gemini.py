@@ -861,24 +861,30 @@ class _GeminiUsageMetaData(TypedDict, total=False):
 
 def _metadata_as_usage(response: _GeminiResponse) -> usage.Usage:
     metadata = response.get('usage_metadata')
-    if metadata is None:
+    if not metadata:
         return usage.Usage()  # pragma: no cover
-    details: dict[str, int] = {}
-    if cached_content_token_count := metadata.get('cached_content_token_count'):
-        details['cached_content_tokens'] = cached_content_token_count  # pragma: no cover
 
-    if thoughts_token_count := metadata.get('thoughts_token_count'):
-        details['thoughts_tokens'] = thoughts_token_count
+    details = {}
+    cached = metadata.get('cached_content_token_count')
+    if cached:
+        details['cached_content_tokens'] = cached  # pragma: no cover
 
-    if tool_use_prompt_token_count := metadata.get('tool_use_prompt_token_count'):
-        details['tool_use_prompt_tokens'] = tool_use_prompt_token_count  # pragma: no cover
+    thoughts = metadata.get('thoughts_token_count')
+    if thoughts:
+        details['thoughts_tokens'] = thoughts
 
-    for key, metadata_details in metadata.items():
-        if key.endswith('_details') and metadata_details:
-            metadata_details = cast(list[_GeminiModalityTokenCount], metadata_details)
-            suffix = key.removesuffix('_details')
-            for detail in metadata_details:
-                details[f'{detail["modality"].lower()}_{suffix}'] = detail['token_count']
+    tool_use = metadata.get('tool_use_prompt_token_count')
+    if tool_use:
+        details['tool_use_prompt_tokens'] = tool_use  # pragma: no cover
+
+    for key in metadata:
+        if key.endswith('_details'):
+            md_details = metadata[key]
+            if md_details:
+                suffix = key[:-8]  # '_details' is 8 chars
+                for detail in md_details:  # type: ignore
+                    mod = detail['modality'].lower()
+                    details[f'{mod}_{suffix}'] = detail['token_count']
 
     return usage.Usage(
         request_tokens=metadata.get('prompt_token_count', 0),
