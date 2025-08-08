@@ -2,6 +2,8 @@ import base64
 from collections.abc import Sequence
 from typing import Literal
 
+from mcp import types as mcp_types
+
 from . import exceptions, messages
 
 try:
@@ -117,7 +119,11 @@ def map_from_sampling_content(
     content: mcp_types.TextContent | mcp_types.ImageContent | mcp_types.AudioContent,
 ) -> messages.TextPart:
     """Convert from sampling content to a pydantic-ai text part."""
-    if isinstance(content, mcp_types.TextContent):  # pragma: no branch
-        return messages.TextPart(content=content.text)
+    if isinstance(content, _TextContent):  # pragma: no branch
+        return _TextPart(content=content.text)
     else:
         raise NotImplementedError('Image and Audio responses in sampling are not yet supported')
+
+_TextContent = mcp_types.TextContent
+
+_TextPart = messages.TextPart
