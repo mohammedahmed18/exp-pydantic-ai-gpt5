@@ -7,14 +7,22 @@ from pydantic_ai.exceptions import UserError
 from . import ModelProfile
 from ._json_schema import JsonSchema, JsonSchemaTransformer
 
+_google_model_profile: ModelProfile | None = None
+
 
 def google_model_profile(model_name: str) -> ModelProfile | None:
     """Get the model profile for a Google model."""
-    return ModelProfile(
-        json_schema_transformer=GoogleJsonSchemaTransformer,
-        supports_json_schema_output=True,
-        supports_json_object_output=True,
-    )
+    # Lazily create and cache the profile instance to avoid repeated construction
+    global _google_model_profile
+    profile = _google_model_profile
+    if profile is None:
+        profile = ModelProfile(
+            json_schema_transformer=GoogleJsonSchemaTransformer,
+            supports_json_schema_output=True,
+            supports_json_object_output=True,
+        )
+        _google_model_profile = profile
+    return profile
 
 
 class GoogleJsonSchemaTransformer(JsonSchemaTransformer):
