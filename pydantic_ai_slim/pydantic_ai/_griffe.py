@@ -7,6 +7,7 @@ from inspect import Signature
 from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
 from griffe import Docstring, DocstringSectionKind, Object as GriffeObject
+from functools import lru_cache
 
 if TYPE_CHECKING:
     from .tools import DocstringFormat
@@ -77,11 +78,8 @@ def doc_descriptions(
 
 def _infer_docstring_style(doc: str) -> DocstringStyle:
     """Simplistic docstring style inference."""
-    for pattern, replacements, style in _docstring_style_patterns:
-        matches = (
-            re.search(pattern.format(replacement), doc, re.IGNORECASE | re.MULTILINE) for replacement in replacements
-        )
-        if any(matches):
+    for pattern, style in _get_compiled_patterns():
+        if pattern.search(doc):
             return style
     # fallback to google style
     return 'google'
@@ -171,3 +169,11 @@ def _disable_griffe_logging():
     logging.root.setLevel(logging.ERROR)
     yield
     logging.root.setLevel(old_level)
+
+
+@lru_cache(1)
+def _get_compiled_patterns():
+    return tuple(
+        (re.compile(pattern.format(f'(?:{"|".join(replacements)})'), re.IGNORECASE | re.MULTILINE), style)
+        for pattern, replacements, style in _docstring_style_patterns
+    )
