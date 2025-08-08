@@ -285,7 +285,7 @@ class Tool(Generic[AgentDepsT]):
         function_schema = _function_schema.FunctionSchema(
             function=function,
             description=description,
-            validator=SchemaValidator(schema=core_schema.any_schema()),
+            validator=_ANY_SCHEMA_VALIDATOR,
             json_schema=json_schema,
             takes_ctx=False,
             is_async=_utils.is_async_callable(function),
@@ -380,3 +380,5 @@ class ToolDefinition:
     """
 
     __repr__ = _utils.dataclasses_no_defaults_repr
+
+_ANY_SCHEMA_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
