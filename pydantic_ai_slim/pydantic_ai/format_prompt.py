@@ -1,7 +1,7 @@
 from __future__ import annotations as _annotations
 
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import date
 from typing import Any
 from xml.etree import ElementTree
@@ -51,9 +51,13 @@ def format_as_xml(
     '''
     ```
     """
-    el = _ToXml(item_tag=item_tag, none_str=none_str).to_xml(obj, root_tag)
+    tx = _ToXml(item_tag=item_tag, none_str=none_str)
+    el = tx.to_xml(obj, root_tag)
     if root_tag is None and el.text is None:
-        join = '' if indent is None else '\n'
+        if indent is not None:
+            join = '\n'
+        else:
+            join = ''
         return join.join(_rootless_xml_elements(el, indent))
     else:
         if indent is not None:
@@ -67,35 +71,68 @@ class _ToXml:
     none_str: str
 
     def to_xml(self, value: Any, tag: str | None) -> ElementTree.Element:
-        element = ElementTree.Element(self.item_tag if tag is None else tag)
+        # Fast-path for None
         if value is None:
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
             element.text = self.none_str
-        elif isinstance(value, str):
+            return element
+
+        # Fast-path for primitives and str/bytes
+        v_type = type(value)
+        if v_type is str:
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
             element.text = value
-        elif isinstance(value, (bytes, bytearray)):
+            return element
+
+        if v_type is bytes or v_type is bytearray:
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
             element.text = value.decode(errors='ignore')
-        elif isinstance(value, (bool, int, float)):
+            return element
+
+        if v_type is bool or v_type is int or v_type is float:
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
             element.text = str(value)
-        elif isinstance(value, date):
+            return element
+
+        if isinstance(value, date):
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
             element.text = value.isoformat()
-        elif isinstance(value, Mapping):
-            self._mapping_to_xml(element, value)  # pyright: ignore[reportUnknownArgumentType]
-        elif is_dataclass(value) and not isinstance(value, type):
-            if tag is None:
-                element = ElementTree.Element(value.__class__.__name__)
-            dc_dict = asdict(value)
-            self._mapping_to_xml(element, dc_dict)
-        elif isinstance(value, BaseModel):
-            if tag is None:
-                element = ElementTree.Element(value.__class__.__name__)
+            return element
+
+        # Mapping
+        if isinstance(value, Mapping):
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
+            self._mapping_to_xml(element, value)
+            return element
+
+        # Dataclass
+        if is_dataclass(value) and not isinstance(value, type):
+            dc_tag = value.__class__.__name__ if tag is None else tag
+            element = ElementTree.Element(dc_tag)
+            # Use fields instead of asdict for efficiency and to preserve nested structure
+            for f in fields(value):
+                v = getattr(value, f.name)
+                child = self.to_xml(v, f.name)
+                element.append(child)
+            return element
+
+        # BaseModel
+        if isinstance(value, BaseModel):
+            bm_tag = value.__class__.__name__ if tag is None else tag
+            element = ElementTree.Element(bm_tag)
+            # .model_dump(mode='python') avoids serialization overhead
             self._mapping_to_xml(element, value.model_dump(mode='python'))
-        elif isinstance(value, Iterable):
-            for item in value:  # pyright: ignore[reportUnknownVariableType]
-                item_el = self.to_xml(item, None)
-                element.append(item_el)
-        else:
-            raise TypeError(f'Unsupported type for XML formatting: {type(value)}')
-        return element
+            return element
+
+        # Iterable (avoid treating dicts/strings as iterables!)
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, Mapping)):
+            element = ElementTree.Element(self.item_tag if tag is None else tag)
+            app = element.append  # localize for speed
+            for item in value:
+                app(self.to_xml(item, None))
+            return element
+
+        raise TypeError(f'Unsupported type for XML formatting: {type(value)}')
 
     def _mapping_to_xml(self, element: ElementTree.Element, mapping: Mapping[Any, Any]) -> None:
         for key, value in mapping.items():
@@ -107,6 +144,7 @@ class _ToXml:
 
 
 def _rootless_xml_elements(root: ElementTree.Element, indent: str | None) -> Iterator[str]:
+    # No optimization here except localizing functions (negligible in most real cases).
     for sub_element in root:
         if indent is not None:
             ElementTree.indent(sub_element, space=indent)
