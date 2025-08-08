@@ -46,6 +46,7 @@ from . import (
     check_allow_model_requests,
     get_user_agent,
 )
+from groq.types import chat
 
 try:
     from groq import NOT_GIVEN, APIStatusError, AsyncGroq, AsyncStream
@@ -483,16 +484,20 @@ class GroqStreamedResponse(StreamedResponse):
 
 def _map_usage(completion: chat.ChatCompletionChunk | chat.ChatCompletion) -> usage.Usage:
     response_usage = None
-    if isinstance(completion, chat.ChatCompletion):
+    if isinstance(completion, _ChatCompletion):
         response_usage = completion.usage
     elif completion.x_groq is not None:
         response_usage = completion.x_groq.usage
 
     if response_usage is None:
-        return usage.Usage()
+        return _Usage()
 
-    return usage.Usage(
+    return _Usage(
         request_tokens=response_usage.prompt_tokens,
         response_tokens=response_usage.completion_tokens,
         total_tokens=response_usage.total_tokens,
     )
+
+_ChatCompletion = chat.ChatCompletion
+
+_Usage = usage.Usage
