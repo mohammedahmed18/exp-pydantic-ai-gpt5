@@ -332,51 +332,68 @@ class _JsonSchemaTestData:
 
     def _gen_any(self, schema: dict[str, Any]) -> Any:
         """Generate data for any JSON Schema."""
-        if const := schema.get('const'):
+        # Fast-path constants with no or low overhead branch logic
+        const = schema.get('const')
+        if const is not None:
             return const
-        elif enum := schema.get('enum'):
+
+        enum = schema.get('enum')
+        if enum is not None:
             return enum[self.seed % len(enum)]
-        elif examples := schema.get('examples'):
+
+        examples = schema.get('examples')
+        if examples is not None:
             return examples[self.seed % len(examples)]
-        elif ref := schema.get('$ref'):
-            key = re.sub(r'^#/\$defs/', '', ref)
+
+        ref = schema.get('$ref')
+        if ref is not None:
+            # remove prefix only, faster than regex
+            key = ref.removeprefix('#/$defs/')
             js_def = self.defs[key]
             return self._gen_any(js_def)
-        elif any_of := schema.get('anyOf'):
+
+        any_of = schema.get('anyOf')
+        if any_of is not None:
             return self._gen_any(any_of[self.seed % len(any_of)])
 
         type_ = schema.get('type')
         if type_ is None:
             # if there's no type or ref, we can't generate anything
             return self._char()
-        elif type_ == 'object':
+        if type_ == 'object':
             return self._object_gen(schema)
-        elif type_ == 'string':
+        if type_ == 'string':
             return self._str_gen(schema)
-        elif type_ == 'integer':
+        if type_ == 'integer':
             return self._int_gen(schema)
-        elif type_ == 'number':
+        if type_ == 'number':
             return float(self._int_gen(schema))
-        elif type_ == 'boolean':
+        if type_ == 'boolean':
             return self._bool_gen()
-        elif type_ == 'array':
+        if type_ == 'array':
             return self._array_gen(schema)
-        elif type_ == 'null':
+        if type_ == 'null':
             return None
-        else:
-            raise NotImplementedError(f'Unknown type: {type_}, please submit a PR to extend JsonSchemaTestData!')
+        raise NotImplementedError(f'Unknown type: {type_}, please submit a PR to extend JsonSchemaTestData!')
 
     def _object_gen(self, schema: dict[str, Any]) -> dict[str, Any]:
         """Generate data for a JSON Schema object."""
-        required = set(schema.get('required', []))
+        required = schema.get('required')
+        if required is None:
+            required_set = ()
+        else:
+            required_set = set(required)
 
         data: dict[str, Any] = {}
-        if properties := schema.get('properties'):
+        properties = schema.get('properties')
+        if properties is not None:
             for key, value in properties.items():
-                if key in required:
+                if key in required_set:
                     data[key] = self._gen_any(value)
 
-        if addition_props := schema.get('additionalProperties'):
+        addition_props = schema.get('additionalProperties')
+        if addition_props is not None:
+            # find a unique key for the artificial property
             add_prop_key = 'additionalProperty'
             while add_prop_key in data:
                 add_prop_key += '_'
@@ -458,16 +475,21 @@ class _JsonSchemaTestData:
 
     def _char(self) -> str:
         """Generate a character on the same principle as Excel columns, e.g. a-z, aa-az..."""
-        chars = len(_chars)
-        s = ''
-        rem = self.seed // chars
-        while rem > 0:
-            s += _chars[(rem - 1) % chars]
-            rem //= chars
-        s += _chars[self.seed % chars]
-        return s
+        s_list = []
+        chars = _chars
+        n = self.seed
+        # same approach as before, but build the string as a list for performance
+        if n < _chars_len:
+            return chars[n]
+        while n >= _chars_len:
+            n, rem = divmod(n, _chars_len)
+            s_list.append(chars[rem])
+        s_list.append(chars[n])
+        return ''.join(reversed(s_list))
 
 
 def _get_string_usage(text: str) -> Usage:
     response_tokens = _estimate_string_tokens(text)
     return Usage(response_tokens=response_tokens, total_tokens=response_tokens)
+
+_chars_len = len(_chars)
