@@ -38,28 +38,36 @@ def tool_from_langchain(langchain_tool: LangChainTool) -> Tool:
     Returns:
         A Pydantic AI tool that corresponds to the LangChain tool.
     """
-    function_name = langchain_tool.name
-    function_description = langchain_tool.description
-    inputs = langchain_tool.args.copy()
-    required = sorted({name for name, detail in inputs.items() if 'default' not in detail})
+    # Cache items to avoid repeated lookups
+    inputs = langchain_tool.args
+    items = inputs.items()
+    # Precompute default values and required fields using single loop for efficiency
+    defaults = {}
+    required = []
+    for name, detail in items:
+        if 'default' in detail:
+            defaults[name] = detail['default']
+        else:
+            required.append(name)
+    # Maintain sort for deterministic output
+    if required:
+        required.sort()
     schema: JsonSchemaValue = langchain_tool.get_input_jsonschema()
     if 'additionalProperties' not in schema:
         schema['additionalProperties'] = False
     if required:
         schema['required'] = required
 
-    defaults = {name: detail['default'] for name, detail in inputs.items() if 'default' in detail}
-
-    # restructures the arguments to match langchain tool run
+    # Argument restructuring kept fast/inline; kwargs merging uses | (Python 3.9+)
     def proxy(*args: Any, **kwargs: Any) -> str:
         assert not args, 'This should always be called with kwargs'
-        kwargs = defaults | kwargs
-        return langchain_tool.run(kwargs)
+        # Use defaults + given kwargs; .copy() not needed due to new dict construction
+        return langchain_tool.run(defaults | kwargs)
 
     return Tool.from_schema(
         function=proxy,
-        name=function_name,
-        description=function_description,
+        name=langchain_tool.name,
+        description=langchain_tool.description,
         json_schema=schema,
     )
 
