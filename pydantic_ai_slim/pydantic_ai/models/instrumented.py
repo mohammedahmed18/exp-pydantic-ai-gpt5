@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Iterator, Mapping
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal
-from urllib.parse import urlparse
+from urllib.parse import urlsplit, urlparse
 
 from opentelemetry._events import (
     Event,  # pyright: ignore[reportPrivateImportUsage]
@@ -353,13 +353,18 @@ class InstrumentedModel(WrapperModel):
 
     @staticmethod
     def model_attributes(model: Model):
+        # Bind globals to locals to reduce repeated global lookups in tight paths
+        sys_attr = GEN_AI_SYSTEM_ATTRIBUTE
+        req_model_attr = GEN_AI_REQUEST_MODEL_ATTRIBUTE
+
         attributes: dict[str, AttributeValue] = {
-            GEN_AI_SYSTEM_ATTRIBUTE: model.system,
-            GEN_AI_REQUEST_MODEL_ATTRIBUTE: model.model_name,
+            sys_attr: model.system,
+            req_model_attr: model.model_name,
         }
+
         if base_url := model.base_url:
             try:
-                parsed = urlparse(base_url)
+                parsed = urlsplit(base_url)
             except Exception:  # pragma: no cover
                 pass
             else:
