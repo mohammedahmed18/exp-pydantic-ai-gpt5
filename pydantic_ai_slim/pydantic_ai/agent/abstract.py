@@ -696,7 +696,7 @@ class AbstractAgent(Generic[AgentDepsT, OutputDataT], ABC):
 
         This method preserves the generic parameters while narrowing the type, unlike a direct call to `isinstance`.
         """
-        return isinstance(node, _agent_graph.ModelRequestNode)
+        return isinstance(node, _ModelRequestNode)
 
     @staticmethod
     def is_call_tools_node(
@@ -934,3 +934,5 @@ class AbstractAgent(Generic[AgentDepsT, OutputDataT], ABC):
         ```
         """
         return get_event_loop().run_until_complete(self.to_cli(deps=deps, prog_name=prog_name))
+
+_ModelRequestNode = _agent_graph.ModelRequestNode
