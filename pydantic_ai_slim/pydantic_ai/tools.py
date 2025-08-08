@@ -150,8 +150,11 @@ class GenerateToolJsonSchema(GenerateJsonSchema):
     def _named_required_fields_schema(self, named_required_fields: Sequence[tuple[str, bool, Any]]) -> JsonSchemaValue:
         # Remove largely-useless property titles
         s = super()._named_required_fields_schema(named_required_fields)
-        for p in s.get('properties', {}):
-            s['properties'][p].pop('title', None)
+        properties = s.get('properties')
+        if not properties:
+            return s
+        for p in properties.values():
+            p.pop('title', None)
         return s
 
 
