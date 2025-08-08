@@ -182,7 +182,9 @@ class InlineDefsJsonSchemaTransformer(JsonSchemaTransformer):
     """Transforms the JSON Schema to inline $defs."""
 
     def __init__(self, schema: JsonSchema, *, strict: bool | None = None):
-        super().__init__(schema, strict=strict, prefer_inlined_defs=True)
+        # Bind to local to avoid repeated attribute lookups during initialization
+        super_init = super().__init__
+        super_init(schema, strict=strict, prefer_inlined_defs=True)
 
     def transform(self, schema: JsonSchema) -> JsonSchema:
         return schema
