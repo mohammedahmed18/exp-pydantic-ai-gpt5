@@ -44,6 +44,10 @@ def openai_model_profile(model_name: str) -> ModelProfile:
     )
 
 
+def _strip_defs_prefix(ref: str) -> str:
+    return ref[8:] if ref.startswith('#/$defs/') else ref
+
+
 _STRICT_INCOMPATIBLE_KEYS = [
     'minLength',
     'maxLength',
@@ -98,7 +102,7 @@ class OpenAIJsonSchemaTransformer(JsonSchemaTransformer):
         # Because the following should never change the semantics of the schema we apply it unconditionally.
         if self.root_ref is not None:
             result.pop('$ref', None)  # We replace references to the self.root_ref with just '#' in the transform method
-            root_key = re.sub(r'^#/\$defs/', '', self.root_ref)
+            root_key = _strip_defs_prefix(self.root_ref)
             result.update(self.defs.get(root_key) or {})
 
         return result
