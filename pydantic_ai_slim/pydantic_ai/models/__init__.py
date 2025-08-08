@@ -633,7 +633,7 @@ def override_allow_model_requests(allow_model_requests: bool) -> Iterator[None]:
         ALLOW_MODEL_REQUESTS = old_value  # pyright: ignore[reportConstantRedefinition]
 
 
-def infer_model(model: Model | KnownModelName | str) -> Model:  # noqa: C901
+def infer_model(model: Model | KnownModelName | str) -> Model:
     """Infer the model from the name."""
     if isinstance(model, Model):
         return model
@@ -663,23 +663,11 @@ def infer_model(model: Model | KnownModelName | str) -> Model:  # noqa: C901
         from .cohere import CohereModel
 
         return CohereModel(model_name, provider=provider)
-    elif provider in (
-        'openai',
-        'deepseek',
-        'azure',
-        'openrouter',
-        'vercel',
-        'grok',
-        'moonshotai',
-        'fireworks',
-        'together',
-        'heroku',
-        'github',
-    ):
+    elif provider in _OPENAI_LIKE_PROVIDERS:
         from .openai import OpenAIModel
 
         return OpenAIModel(model_name, provider=provider)
-    elif provider in ('google-gla', 'google-vertex'):
+    elif provider in _GOOGLE_PROVIDERS:
         from .google import GoogleModel
 
         return GoogleModel(model_name, provider=provider)
@@ -866,3 +854,33 @@ def _get_final_result_event(e: ModelResponseStreamEvent, params: ModelRequestPar
                 return FinalResultEvent(tool_name=new_part.tool_name, tool_call_id=new_part.tool_call_id)
             elif tool_def.kind == 'deferred':
                 return FinalResultEvent(tool_name=None, tool_call_id=None)
+
+_OPENAI_LIKE_PROVIDERS = frozenset((
+    'openai',
+    'deepseek',
+    'azure',
+    'openrouter',
+    'vercel',
+    'grok',
+    'moonshotai',
+    'fireworks',
+    'together',
+    'heroku',
+    'github',
+))
+
+_GOOGLE_PROVIDERS = frozenset(('google-gla', 'google-vertex'))
+
+_OPENAI_PROVIDERS = frozenset((
+    'openai',
+    'deepseek',
+    'azure',
+    'openrouter',
+    'vercel',
+    'grok',
+    'moonshotai',
+    'fireworks',
+    'together',
+    'heroku',
+    'github',
+))
