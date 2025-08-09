@@ -49,6 +49,8 @@ class ModelProfile:
     @classmethod
     def from_profile(cls, profile: ModelProfile | None) -> Self:
         """Build a ModelProfile subclass instance from a ModelProfile instance."""
+        if profile is None:
+            return cls()
         if isinstance(profile, cls):
             return profile
         return cls().update(profile)
