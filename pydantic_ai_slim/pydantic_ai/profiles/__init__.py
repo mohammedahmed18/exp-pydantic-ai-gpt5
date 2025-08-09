@@ -51,6 +51,8 @@ class ModelProfile:
         """Build a ModelProfile subclass instance from a ModelProfile instance."""
         if isinstance(profile, cls):
             return profile
+        if not profile:
+            return cls()
         return cls().update(profile)
 
     def update(self, profile: ModelProfile | None) -> Self:
