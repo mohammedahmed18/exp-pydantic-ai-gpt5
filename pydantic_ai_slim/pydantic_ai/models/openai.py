@@ -45,6 +45,8 @@ from ..providers import Provider, infer_provider
 from ..settings import ModelSettings
 from ..tools import ToolDefinition
 from . import Model, ModelRequestParameters, StreamedResponse, check_allow_model_requests, download_item, get_user_agent
+from openai import AsyncOpenAI
+from openai.types import chat
 
 try:
     from openai import NOT_GIVEN, APIStatusError, AsyncOpenAI, AsyncStream, NotGiven
@@ -524,16 +526,17 @@ class OpenAIModel(Model):
         return response_format_param
 
     def _map_tool_definition(self, f: ToolDefinition) -> chat.ChatCompletionToolParam:
-        tool_param: chat.ChatCompletionToolParam = {
-            'type': 'function',
-            'function': {
-                'name': f.name,
-                'description': f.description or '',
-                'parameters': f.parameters_json_schema,
-            },
+        func = {
+            'name': f.name,
+            'description': f.description or '',
+            'parameters': f.parameters_json_schema,
         }
         if f.strict and OpenAIModelProfile.from_profile(self.profile).openai_supports_strict_tool_definition:
-            tool_param['function']['strict'] = f.strict
+            func['strict'] = f.strict
+        tool_param: chat.ChatCompletionToolParam = {
+            'type': 'function',
+            'function': func,
+        }
         return tool_param
 
     async def _map_user_message(self, message: ModelRequest) -> AsyncIterable[chat.ChatCompletionMessageParam]:
