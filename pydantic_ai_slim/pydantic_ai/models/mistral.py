@@ -48,6 +48,8 @@ from . import (
     check_allow_model_requests,
     get_user_agent,
 )
+from mistralai import Content as MistralContent, OptionalNullable as MistralOptionalNullable, TextChunk as MistralTextChunk
+from mistralai.types.basemodel import Unset as MistralUnset
 
 try:
     from mistralai import (
@@ -714,23 +716,22 @@ def _map_usage(response: MistralChatCompletionResponse | MistralCompletionChunk)
 
 def _map_content(content: MistralOptionalNullable[MistralContent]) -> str | None:
     """Maps the delta content from a Mistral Completion Chunk to a string or None."""
-    output: str | None = None
-
-    if isinstance(content, MistralUnset) or not content:
-        output = None
-    elif isinstance(content, list):
+    if not content or isinstance(content, MistralUnset):
+        return None
+    if isinstance(content, str):
+        return content if content else None
+    if isinstance(content, list):
+        # Accumulate texts efficiently
+        texts = []
         for chunk in content:
             if isinstance(chunk, MistralTextChunk):
-                output = output or '' + chunk.text
+                texts.append(chunk.text)
             else:
                 assert False, (  # pragma: no cover
-                    f'Other data types like (Image, Reference) are not yet supported,  got {type(chunk)}'
+                    f'Other data types like (Image, Reference) are not yet supported, got {type(chunk)}'
                 )
-    elif isinstance(content, str):
-        output = content
-
-    # Note: Check len to handle potential mismatch between function calls and responses from the API. (`msg: not the same number of function class and responses`)
-    if output and len(output) == 0:  # pragma: no cover
-        output = None
-
-    return output
+        if not texts:
+            return None
+        output = ''.join(texts)
+        return output if output else None
+    return None  # fallback for unhandled types
