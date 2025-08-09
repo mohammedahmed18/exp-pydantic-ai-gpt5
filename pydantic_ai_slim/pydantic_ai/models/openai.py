@@ -45,6 +45,8 @@ from ..providers import Provider, infer_provider
 from ..settings import ModelSettings
 from ..tools import ToolDefinition
 from . import Model, ModelRequestParameters, StreamedResponse, check_allow_model_requests, download_item, get_user_agent
+from openai import AsyncOpenAI
+from openai.types import chat
 
 try:
     from openai import NOT_GIVEN, APIStatusError, AsyncOpenAI, AsyncStream, NotGiven
@@ -190,7 +192,7 @@ class OpenAIModel(Model):
 
     def __init__(
         self,
-        model_name: OpenAIModelName,
+        model_name: 'OpenAIModelName',
         *,
         provider: Literal[
             'openai',
@@ -207,7 +209,7 @@ class OpenAIModel(Model):
         ]
         | Provider[AsyncOpenAI] = 'openai',
         profile: ModelProfileSpec | None = None,
-        system_prompt_role: OpenAISystemPromptRole | None = None,
+        system_prompt_role: 'OpenAISystemPromptRole' | None = None,
         settings: ModelSettings | None = None,
     ):
         """Initialize an OpenAI model.
@@ -524,6 +526,7 @@ class OpenAIModel(Model):
         return response_format_param
 
     def _map_tool_definition(self, f: ToolDefinition) -> chat.ChatCompletionToolParam:
+        openai_profile = OpenAIModelProfile.from_profile(self.profile)
         tool_param: chat.ChatCompletionToolParam = {
             'type': 'function',
             'function': {
@@ -532,7 +535,8 @@ class OpenAIModel(Model):
                 'parameters': f.parameters_json_schema,
             },
         }
-        if f.strict and OpenAIModelProfile.from_profile(self.profile).openai_supports_strict_tool_definition:
+        # Only call property once and use direct value
+        if f.strict and getattr(openai_profile, 'openai_supports_strict_tool_definition', False):
             tool_param['function']['strict'] = f.strict
         return tool_param
 
