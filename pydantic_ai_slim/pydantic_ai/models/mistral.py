@@ -48,6 +48,8 @@ from . import (
     check_allow_model_requests,
     get_user_agent,
 )
+from mistralai import Content as MistralContent, OptionalNullable as MistralOptionalNullable, TextChunk as MistralTextChunk
+from mistralai.types.basemodel import Unset as MistralUnset
 
 try:
     from mistralai import (
@@ -714,20 +716,41 @@ def _map_usage(response: MistralChatCompletionResponse | MistralCompletionChunk)
 
 def _map_content(content: MistralOptionalNullable[MistralContent]) -> str | None:
     """Maps the delta content from a Mistral Completion Chunk to a string or None."""
-    output: str | None = None
+    # Fast path for unset or falsy values (None, empty string, empty list, etc.)
+    UnsetType = MistralUnset
+    if isinstance(content, UnsetType) or not content:
+        return None
 
-    if isinstance(content, MistralUnset) or not content:
-        output = None
-    elif isinstance(content, list):
+    TextChunkType = MistralTextChunk
+
+    if isinstance(content, list):
+        output: str | None = None
         for chunk in content:
-            if isinstance(chunk, MistralTextChunk):
-                output = output or '' + chunk.text
+            if isinstance(chunk, TextChunkType):
+                if not output:
+                    output = chunk.text
             else:
                 assert False, (  # pragma: no cover
                     f'Other data types like (Image, Reference) are not yet supported,  got {type(chunk)}'
                 )
-    elif isinstance(content, str):
+
+        # Note: Check len to handle potential mismatch between function calls and responses from the API. (`msg: not the same number of function class and responses`)
+        if output and len(output) == 0:  # pragma: no cover
+            output = None
+
+        return output
+
+    if isinstance(content, str):
         output = content
+
+        # Note: Check len to handle potential mismatch between function calls and responses from the API. (`msg: not the same number of function class and responses`)
+        if output and len(output) == 0:  # pragma: no cover
+            output = None
+
+        return output
+
+    # Default fallback to match original behavior for any other truthy types
+    output: str | None = None
 
     # Note: Check len to handle potential mismatch between function calls and responses from the API. (`msg: not the same number of function class and responses`)
     if output and len(output) == 0:  # pragma: no cover
